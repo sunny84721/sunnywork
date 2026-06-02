@@ -1,0 +1,1637 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>個人運輸工作管理系統 - TruckingJob</title>
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<!-- FontAwesome for icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        colors: {
+          bg: '#0d1117',
+          surface: '#161b22',
+          surface2: '#1c2330',
+          border: '#30363d',
+          accent: '#f0a500',
+          accent2: '#e05c1a',
+          textMuted: '#8b949e',
+          cyanCustom: '#39c5cf',
+          holiday: '#ff6b6b'
+        },
+        fontFamily: {
+          sans: ['Noto Sans TC', 'sans-serif'],
+          rajdhani: ['Rajdhani', 'sans-serif'],
+        }
+      }
+    }
+  }
+</script>
+
+<style>
+  body {
+    background-color: #0d1117;
+    scrollbar-width: thin;
+    scrollbar-color: #30363d #0d1117;
+    -webkit-tap-highlight-color: transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0d1117;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #30363d;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #8b949e;
+  }
+  .animate-fade-in {
+    animation: fadeIn 0.25s ease-out forwards;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .cal-cell-height {
+    min-height: 84px;
+  }
+  /* 手機專屬隱藏滾動條樣式 */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  @media(max-width: 640px) {
+    .cal-cell-height {
+      min-height: 64px;
+    }
+  }
+</style>
+</head>
+<body class="text-gray-100 min-h-screen flex flex-col font-sans">
+
+<!-- 全局高質感 Toast 提示容器 -->
+<div id="toastContainer" class="fixed top-5 right-5 z-[300] flex flex-col gap-2 pointer-events-none"></div>
+
+<!-- Header -->
+<header class="bg-surface border-b border-border px-4 md:px-8 flex items-center justify-between h-16 sticky top-0 z-50 shadow-lg">
+  <div class="flex items-center gap-3">
+    <div class="w-9 h-9 bg-gradient-to-br from-accent to-accent2 rounded-lg flex items-center justify-center text-lg text-white font-bold shadow-md shadow-orange-950/20 active:scale-95 transition-transform">
+      <i class="fa-solid fa-truck-moving"></i>
+    </div>
+    <div>
+      <div class="font-rajdhani text-xl font-bold tracking-wider leading-none text-white">TruckingJob</div>
+      <div class="text-[10px] text-textMuted tracking-[2px] mt-0.5">個人運輸工作管理系統</div>
+    </div>
+  </div>
+  
+  <div class="flex items-center gap-3 md:gap-6">
+    <nav class="flex bg-bg p-1 rounded-lg border border-border">
+      <button id="navRecord" class="flex items-center gap-2 px-3 py-2 rounded-md text-xs md:text-sm font-medium transition text-accent bg-accent/10 border border-accent/20 active:scale-95" onclick="switchMainPage('record')">
+        <i class="fa-regular fa-clipboard"></i> <span class="hidden sm:inline">工作紀錄</span>
+      </button>
+      <button id="navStats" class="flex items-center gap-2 px-3 py-2 rounded-md text-xs md:text-sm font-medium transition text-textMuted hover:text-gray-200 active:scale-95" onclick="switchMainPage('stats')">
+        <i class="fa-solid fa-chart-simple"></i> <span class="hidden sm:inline">統計分析</span>
+      </button>
+      <button id="navSettings" class="flex items-center gap-2 px-3 py-2 rounded-md text-xs md:text-sm font-medium transition text-textMuted hover:text-gray-200 active:scale-95" onclick="switchMainPage('settings')">
+        <i class="fa-solid fa-gears"></i> <span class="hidden sm:inline">系統設定</span>
+      </button>
+    </nav>
+    
+    <div class="text-right hidden xs:flex flex-col justify-center">
+      <div class="font-rajdhani text-xs text-textMuted font-medium tracking-wider" id="liveDate">----/----/-- 星期-</div>
+      <div class="font-rajdhani text-base md:text-lg font-bold text-accent tracking-widest leading-none" id="liveTime">--:--:--</div>
+    </div>
+  </div>
+</header>
+
+<main class="container max-w-5xl mx-auto p-4 md:p-6 flex-1 w-full">
+
+  <!-- ==================== 工作紀錄分頁 ==================== -->
+  <div id="panelRecord" class="main-panel active animate-fade-in space-y-6">
+    
+    <!-- 行事曆與休假區塊 -->
+    <div class="bg-surface border border-border rounded-xl shadow-xl overflow-hidden">
+      <div class="bg-surface2 px-5 py-4 border-b border-border flex items-center justify-between">
+        <div class="flex items-center gap-2 text-textMuted font-rajdhani text-xs tracking-widest font-semibold uppercase">
+          <i class="fa-solid fa-calendar-days text-accent"></i> <span class="hidden xs:inline">📅 運輸排程行事曆 (點擊日期登記假別)</span><span class="inline xs:hidden">📅 排程行事曆 (點擊登記)</span>
+        </div>
+        <div class="flex items-center gap-2 md:gap-3">
+          <button class="w-8 h-8 flex items-center justify-center rounded-lg border border-border bg-bg/50 hover:border-accent hover:text-accent transition active:scale-95" onclick="changeMonth(-1)">
+            <i class="fa-solid fa-chevron-left text-xs"></i>
+          </button>
+          <span class="font-rajdhani text-sm md:text-lg font-bold tracking-widest text-white min-w-[100px] md:min-w-[120px] text-center" id="calMonth">---- 年 -- 月</span>
+          <button class="w-8 h-8 flex items-center justify-center rounded-lg border border-border bg-bg/50 hover:border-accent hover:text-accent transition active:scale-95" onclick="changeMonth(1)">
+            <i class="fa-solid fa-chevron-right text-xs"></i>
+          </button>
+        </div>
+      </div>
+      
+      <!-- 行事曆網格 -->
+      <div class="grid grid-cols-7 border-b border-border" id="calGridHeader"></div>
+      <div class="grid grid-cols-7 bg-bg/20" id="calGrid"></div>
+      
+      <!-- 請假輪休細單 -->
+      <div class="p-4 bg-surface2 border-t border-border hidden" id="leaveList"></div>
+    </div>
+
+    <!-- 新增運輸任務區塊 -->
+    <div class="bg-surface border border-border rounded-xl p-5 md:p-6 shadow-xl space-y-4">
+      <div class="flex items-center justify-between border-b border-border/60 pb-3">
+        <h3 class="text-textMuted font-rajdhani text-xs tracking-wider font-bold uppercase flex items-center gap-2">
+          <i class="fa-solid fa-truck-ramp-box text-accent"></i> 🚛 新增今日運輸任務
+        </h3>
+        <span class="text-xs text-textMuted flex items-center gap-1">
+          任務日期：<input type="date" id="fDate" class="bg-bg border border-border rounded px-2 py-1 text-xs text-white focus:border-accent outline-none font-rajdhani cursor-pointer min-h-[32px]">
+        </span>
+      </div>
+
+      <!-- 表單欄位 -->
+      <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-4 items-end">
+        <div class="sm:col-span-4">
+          <label class="block text-xs text-textMuted tracking-wider mb-1.5 uppercase font-medium">起點</label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-500 text-xs"><i class="fa-solid fa-circle-dot"></i></span>
+            <input type="text" id="fOrigin" placeholder="出發地" class="w-full bg-bg border border-border rounded-lg pl-8 pr-3 py-3 text-sm focus:border-accent outline-none transition" onkeydown="if(event.key==='Enter')document.getElementById('fDest').focus()">
+          </div>
+        </div>
+        
+        <!-- 起終點對對調按鈕 -->
+        <div class="sm:col-span-1 flex justify-center py-1 sm:pb-2 my-1 sm:my-0">
+          <button type="button" onclick="swapOriginDest()" class="w-10 h-10 sm:w-8 sm:h-8 rounded-full bg-bg hover:bg-surface2 border border-border hover:border-accent text-accent transition flex items-center justify-center shadow active:scale-95" title="起終點快速對調">
+            <i class="fa-solid fa-arrows-rotate text-sm sm:text-xs"></i>
+          </button>
+        </div>
+
+        <div class="sm:col-span-4">
+          <label class="block text-xs text-textMuted tracking-wider mb-1.5 uppercase font-medium">終點</label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-rose-500 text-xs"><i class="fa-solid fa-location-dot"></i></span>
+            <input type="text" id="fDest" placeholder="目的地" class="w-full bg-bg border border-border rounded-lg pl-8 pr-3 py-3 text-sm focus:border-accent outline-none transition" onkeydown="if(event.key==='Enter')document.getElementById('fOwner').focus()">
+          </div>
+        </div>
+
+        <div class="sm:col-span-3">
+          <label class="block text-xs text-textMuted tracking-wider mb-1.5 uppercase font-medium">貨主 / 公司名</label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-cyanCustom text-xs"><i class="fa-solid fa-building"></i></span>
+            <input type="text" id="fOwner" placeholder="貨主名稱" class="w-full bg-bg border border-border rounded-lg pl-8 pr-3 py-3 text-sm focus:border-accent outline-none transition" onkeydown="if(event.key==='Enter')addRoute()">
+          </div>
+        </div>
+      </div>
+
+      <!-- 工作類型與提交 -->
+      <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pt-2">
+        <div class="w-full md:w-auto">
+          <div class="text-[11px] text-textMuted tracking-wider mb-1.5 uppercase">工作類型</div>
+          <div class="flex flex-wrap gap-2">
+            <!-- CY -->
+            <label class="flex items-center gap-1.5 cursor-pointer px-4 py-2.5 rounded-lg border border-border bg-bg/50 text-xs text-textMuted select-none transition-all duration-150 has-[:checked]:border-blue-500 has-[:checked]:bg-blue-500/10 has-[:checked]:text-blue-400">
+              <input type="radio" name="jobType" id="tCY" value="CY" checked class="hidden">
+              <span class="w-2 h-2 rounded-full bg-blue-500"></span> CY
+            </label>
+            <!-- 卸斗 -->
+            <label class="flex items-center gap-1.5 cursor-pointer px-4 py-2.5 rounded-lg border border-border bg-bg/50 text-xs text-textMuted select-none transition-all duration-150 has-[:checked]:border-green-500 hover:text-green-400 has-[:checked]:bg-green-500/10 has-[:checked]:text-green-400">
+              <input type="radio" name="jobType" id="t卸斗" value="卸斗" class="hidden">
+              <span class="w-2 h-2 rounded-full bg-green-500"></span> 卸斗
+            </label>
+            <!-- 特殊 -->
+            <label class="flex items-center gap-1.5 cursor-pointer px-4 py-2.5 rounded-lg border border-border bg-bg/50 text-xs text-textMuted select-none transition-all duration-150 has-[:checked]:border-purple-500 hover:text-purple-400 has-[:checked]:bg-purple-500/10 has-[:checked]:text-purple-400">
+              <input type="radio" name="jobType" id="t特殊" value="特殊" class="hidden">
+              <span class="w-2 h-2 rounded-full bg-purple-500"></span> 特殊
+            </label>
+            <!-- 危物 -->
+            <label class="flex items-center gap-1.5 cursor-pointer px-4 py-2.5 rounded-lg border border-border bg-bg/50 text-xs text-textMuted select-none transition-all duration-150 has-[:checked]:border-red-500 hover:text-red-400 has-[:checked]:bg-red-500/10 has-[:checked]:text-red-400">
+              <input type="radio" name="jobType" id="t危物" value="危物" class="hidden">
+              <span class="w-2 h-2 rounded-full bg-red-500"></span> 危物
+            </label>
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-3 w-full md:w-auto self-end">
+          <button class="bg-gradient-to-r from-accent to-accent2 text-black hover:opacity-90 font-bold px-8 py-3 rounded-lg transition-transform duration-100 active:scale-95 shadow-md flex items-center justify-center gap-2 min-h-[44px] w-full md:w-auto whitespace-nowrap" onclick="addRoute()">
+            <i class="fa-solid fa-plus"></i> 新增任務
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 日程列表與搜尋 -->
+    <div class="bg-surface border border-border rounded-xl shadow-xl overflow-hidden">
+      <div class="p-4 bg-surface2 border-b border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <h3 class="text-textMuted font-rajdhani text-xs tracking-wider font-bold uppercase flex items-center gap-2">
+          <i class="fa-solid fa-list-check text-accent"></i> 📋 任務日程清單
+        </h3>
+        
+        <!-- 任務日程月份選擇過濾 -->
+        <div class="flex items-center gap-2 w-full sm:w-auto">
+          <label for="listMonthSelect" class="text-xs text-textMuted font-bold uppercase whitespace-nowrap">選擇月份：</label>
+          <input type="month" id="listMonthSelect" class="bg-bg border border-border rounded-lg px-3 py-2 text-xs text-white focus:border-accent outline-none font-rajdhani cursor-pointer min-h-[36px]" onchange="onListMonthChange()">
+        </div>
+      </div>
+
+      <!-- 日期分頁滾動條 -->
+      <div class="tabs-wrap border-b border-border bg-bg/40">
+        <div class="tabs-bar flex overflow-x-auto gap-1 p-2 no-scrollbar" id="tabsBar"></div>
+      </div>
+      
+      <!-- 任務內容 -->
+      <div class="p-4" id="tabPanel"></div>
+    </div>
+  </div>
+
+  <!-- ==================== 統計分析分頁 ==================== -->
+  <div id="panelStats" class="main-panel hidden animate-fade-in space-y-6">
+    <!-- 選擇統計月份 -->
+    <div class="bg-surface border border-border rounded-xl p-5 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div>
+        <h3 class="font-bold text-base text-white">月份數據分析儀表板</h3>
+        <p class="text-xs text-textMuted mt-1">選定特定月份以查看任務與請假指標統計</p>
+      </div>
+      <div class="flex items-center gap-3 w-full md:w-auto">
+        <label for="monthSelect" class="text-xs text-textMuted font-bold uppercase whitespace-nowrap">分析月份：</label>
+        <input type="month" id="monthSelect" class="bg-bg border border-border rounded-lg px-4 py-2.5 text-sm text-white focus:border-accent outline-none font-rajdhani cursor-pointer w-full md:w-auto min-h-[44px]" onchange="calculateStats()">
+      </div>
+    </div>
+
+    <!-- 數據指標摘要 (KPI Cards) -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <!-- 總趟數 -->
+      <div class="bg-surface border border-border rounded-xl p-5 relative overflow-hidden shadow-md">
+        <div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-indigo-600"></div>
+        <div class="flex items-center justify-between text-textMuted">
+          <span class="text-xs font-semibold">運輸任務總數</span>
+          <span class="text-lg text-blue-400"><i class="fa-solid fa-route"></i></span>
+        </div>
+        <div class="mt-2 flex items-baseline gap-1 font-rajdhani text-2xl md:text-3xl font-bold text-blue-400 leading-none" id="totalTasks">
+          0 <span class="text-xs font-sans text-textMuted font-normal">趟次</span>
+        </div>
+        <div class="mt-2 text-[10px] text-textMuted">本月所執行的運輸趟數總計</div>
+      </div>
+
+      <!-- 請假總天數 -->
+      <div class="bg-surface border border-border rounded-xl p-5 relative overflow-hidden shadow-md">
+        <div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-rose-500 to-red-600"></div>
+        <div class="flex items-center justify-between text-textMuted">
+          <span class="text-xs font-semibold">請假總數</span>
+          <span class="text-lg text-rose-500"><i class="fa-regular fa-calendar-minus"></i></span>
+        </div>
+        <div class="mt-2 flex items-baseline gap-1 font-rajdhani text-2xl md:text-3xl font-bold text-rose-500 leading-none" id="totalLeaves">
+          0 <span class="text-xs font-sans text-textMuted font-normal">天次</span>
+        </div>
+        <div class="mt-2 text-[10px] text-textMuted">不包含輪休與例假日</div>
+      </div>
+
+      <!-- 輪休總天數 -->
+      <div class="bg-surface border border-border rounded-xl p-5 relative overflow-hidden shadow-md">
+        <div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-green-500 to-emerald-600"></div>
+        <div class="flex items-center justify-between text-textMuted">
+          <span class="text-xs font-semibold">輪休總數</span>
+          <span class="text-lg text-green-500"><i class="fa-solid fa-umbrella-beach"></i></span>
+        </div>
+        <div class="mt-2 flex items-baseline gap-1 font-rajdhani text-2xl md:text-3xl font-bold text-green-400 leading-none" id="totalOffs">
+          0 <span class="text-xs font-sans text-textMuted font-normal">天次</span>
+        </div>
+        <div class="mt-2 text-[10px] text-textMuted">登記輪休排程總天數</div>
+      </div>
+    </div>
+
+    <!-- 視覺化圖表與任務細項 -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- 類型比例圖表 -->
+      <div class="bg-surface border border-border rounded-xl p-5 shadow-xl space-y-6 lg:col-span-1">
+        <h3 class="text-textMuted font-rajdhani text-xs tracking-wider font-bold uppercase flex items-center gap-2 border-b border-border/60 pb-3">
+          <i class="fa-solid fa-id-badge text-accent"></i> 任務類型分布比率
+        </h3>
+        <div class="space-y-4" id="jobTypeVisualBars"></div>
+      </div>
+
+      <!-- 任務與排程細項手風琴清單 -->
+      <div class="bg-surface border border-border rounded-xl p-5 shadow-xl lg:col-span-2 space-y-4">
+        <h3 class="text-textMuted font-rajdhani text-xs tracking-wider font-bold uppercase flex items-center gap-2 border-b border-border/60 pb-3">
+          <i class="fa-solid fa-receipt text-accent"></i> 任務明細與排程明細 (可點擊摺疊展開)
+        </h3>
+        <div class="divide-y divide-border animate-fade-in" id="detailBox"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 系統設定分頁 ==================== -->
+  <div id="panelSettings" class="main-panel hidden animate-fade-in space-y-6">
+    <div class="bg-surface border border-border rounded-xl p-5 md:p-6 shadow-xl space-y-6">
+      <div class="border-b border-border/60 pb-3">
+        <h3 class="text-textMuted font-rajdhani text-xs tracking-wider font-bold uppercase flex items-center gap-2">
+          <i class="fa-solid fa-sliders text-accent"></i> ⚙️ 系統報表與工具
+        </h3>
+      </div>
+
+      <!-- 報表輸出與簡化版數據統計卡 -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- 報表輸出 -->
+        <div class="space-y-4 bg-bg/40 p-4 rounded-xl border border-border flex flex-col justify-between">
+          <div>
+            <h4 class="text-sm font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-file-excel text-green-500"></i> 月度 Excel 報表匯出 (CSV)
+            </h4>
+            <p class="text-xs text-textMuted leading-relaxed mt-2">
+              系統支援將指定月份的任務記錄匯出成標準 CSV 格式檔案，可用於 Excel、Google 試算表直接開啟，解決中文亂碼問題，方便向車隊或貨主核帳。
+            </p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2 pt-4">
+            <input type="month" id="exportMonthSelect" class="bg-surface border border-border rounded-lg px-3 py-2 text-xs text-white focus:border-accent outline-none font-rajdhani min-h-[38px] flex-1">
+            <button class="bg-green-600 hover:bg-green-500 text-white text-xs font-bold px-4 py-2.5 rounded-lg transition flex items-center justify-center gap-1.5 whitespace-nowrap active:scale-95 min-h-[38px]" onclick="exportToCSV()">
+              <i class="fa-solid fa-download"></i> 匯出月報表 (.csv)
+            </button>
+          </div>
+        </div>
+
+        <!-- 簡化版統計分析 -->
+        <div class="space-y-4 bg-bg/40 p-4 rounded-xl border border-border flex flex-col justify-between">
+          <div>
+            <h4 class="text-sm font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-chart-pie text-accent"></i> 簡化版月度統計分析圖
+            </h4>
+            <p class="text-xs text-textMuted leading-relaxed mt-2">
+              系統將立即彙整您選定月份的各類運輸趟數與休假數據，在本地直接繪製成一張科技感十足的「電子統計數據圖」，並支援一鍵下載，方便向車隊或群組快速回報！
+            </p>
+          </div>
+          <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-4">
+            <input type="month" id="chartMonthSelect" class="bg-surface border border-border rounded-lg px-2.5 py-2 text-xs text-white focus:border-accent outline-none font-rajdhani h-[38px] min-h-[38px] cursor-pointer">
+            <div class="flex gap-2 flex-1">
+              <button class="flex-1 bg-gradient-to-r from-accent to-accent2 text-black font-bold text-xs px-2 py-2.5 rounded-lg transition-transform active:scale-95 flex items-center justify-center gap-1.5 shadow-md h-[38px] whitespace-nowrap" onclick="generateLocalReportImage()">
+                <i class="fa-solid fa-image"></i> 生成統計圖
+              </button>
+              <button class="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs px-2 py-2.5 rounded-lg border border-border transition-transform active:scale-95 flex items-center justify-center gap-1.5 h-[38px] whitespace-nowrap" onclick="copyLineReportText()">
+                <i class="fa-solid fa-copy"></i> 複製 LINE 報表
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ==================== 整合型行程假別彈窗 ==================== -->
+<div class="modal-overlay fixed inset-0 bg-black/75 z-[200] flex items-center justify-center p-4 hidden transition-opacity duration-300" id="modalOverlay" onclick="if(event.target===this) closeModal()">
+  <div class="modal bg-surface border border-border rounded-xl shadow-2xl p-5 md:p-6 w-full max-w-sm animate-fade-in relative">
+    <button class="absolute top-4 right-4 text-textMuted hover:text-white transition" onclick="closeModal()">
+      <i class="fa-solid fa-xmark text-lg"></i>
+    </button>
+
+    <h3 class="modal-title font-bold text-base text-accent mb-4 flex items-center gap-2">
+      <i class="fa-regular fa-calendar-check"></i> <span id="modalDateTitle">安排個人行程</span>
+    </h3>
+    
+    <div class="space-y-4">
+      <div class="space-y-2 p-3 bg-bg/50 rounded-lg border border-border">
+        <label class="block text-xs font-semibold text-textMuted uppercase tracking-wider">設定行程 / 個人假別</label>
+        <div class="flex gap-2 mt-2">
+          <select id="mType" class="flex-1 bg-surface border border-border text-sm rounded-lg px-3 py-2.5 text-white focus:border-accent outline-none min-h-[44px]">
+            <option value="輪休">💤 輪休</option>
+            <option value="請假">🚨 請假</option>
+            <option value="其他">📌 其他</option>
+          </select>
+          <button class="bg-gradient-to-r from-accent to-accent2 text-black hover:opacity-95 font-bold px-4 py-2.5 rounded-lg text-xs transition active:scale-95 min-h-[44px]" onclick="saveLeave()">
+            確認安排
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 簡化版月度統計分析圖預覽 Modal ==================== -->
+<div id="localReportModal" class="fixed inset-0 bg-black/85 z-[200] flex items-center justify-center p-4 hidden" onclick="if(event.target===this) closeLocalReportModal()">
+  <div class="bg-surface border border-border rounded-xl shadow-2xl p-5 w-full max-w-xl animate-fade-in relative flex flex-col max-h-[90vh]">
+    <button class="absolute top-4 right-4 text-textMuted hover:text-white transition z-10" onclick="closeLocalReportModal()">
+      <i class="fa-solid fa-xmark text-lg"></i>
+    </button>
+    
+    <h3 class="font-bold text-base text-accent mb-3 flex items-center gap-2">
+      <i class="fa-solid fa-image"></i> 運輸職人月度統計分析圖
+    </h3>
+    
+    <!-- 圖片顯示區 -->
+    <div class="flex-1 overflow-auto bg-slate-950 rounded-xl border border-border flex items-center justify-center p-2 min-h-[250px] max-h-[500px]">
+      <img id="reportCardImage" class="max-w-full max-h-full object-contain rounded-lg shadow-lg" alt="統計分析圖載入中...">
+    </div>
+    
+    <div class="text-center text-[11px] text-textMuted mt-2">
+      💡 手機用戶可【長按圖片】直接儲存或分享至 LINE 群組！
+    </div>
+
+    <div class="flex flex-wrap gap-2 mt-4">
+      <button class="flex-1 bg-slate-800 hover:bg-slate-700 border border-border text-xs py-2.5 rounded-lg text-textMuted hover:text-white transition active:scale-95 min-h-[40px]" onclick="closeLocalReportModal()">關閉</button>
+      <a id="downloadReportBtn" download="TruckingJob_MonthlyReport.png" class="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs py-2.5 rounded-lg flex items-center justify-center gap-1.5 shadow transition cursor-pointer active:scale-95 min-h-[40px]">
+        <i class="fa-solid fa-download"></i> 下載圖 (PNG)
+      </a>
+      <button class="flex-1 bg-gradient-to-r from-accent to-accent2 text-black font-bold text-xs py-2.5 rounded-lg flex items-center justify-center gap-1.5 shadow transition active:scale-95 min-h-[40px]" onclick="copyLineReportTextFromModal()">
+        <i class="fa-solid fa-copy"></i> 複製 LINE 報表
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 自訂確認與警示彈窗 ==================== -->
+<div class="modal-overlay fixed inset-0 bg-black/75 z-[210] flex items-center justify-center p-4 hidden" id="alertModal">
+  <div class="modal bg-surface border border-red-900 rounded-xl p-5 w-full max-w-sm text-center space-y-4">
+    <div class="w-12 h-12 bg-red-950/40 text-red-500 rounded-full flex items-center justify-center text-xl mx-auto border border-red-900/50">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+    </div>
+    <div>
+      <h3 class="text-white font-bold text-base" id="alertModalTitle">警告與確認</h3>
+      <p class="text-xs text-textMuted mt-2 leading-relaxed" id="alertModalMsg">您確定要進行此操作嗎？這可能無法還原。</p>
+    </div>
+    <div class="flex gap-2">
+      <button class="flex-1 bg-surface border border-border text-xs py-2.5 rounded-lg text-textMuted hover:text-white min-h-[44px]" onclick="closeAlertModal()">取消</button>
+      <button class="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold text-xs py-2.5 rounded-lg min-h-[44px]" id="alertModalConfirmBtn">確定執行</button>
+    </div>
+  </div>
+</div>
+
+<!-- Footer -->
+<footer class="bg-surface border-t border-border px-8 py-4 flex flex-col sm:flex-row justify-between items-center gap-3">
+  <div class="text-[11px] text-textMuted">
+    TruckingJob 個人運輸工作管理系統 &copy; 2026. All rights reserved.
+  </div>
+  <div class="font-rajdhani text-xs text-textMuted tracking-wider font-semibold">
+    DESIGNED BY <span class="text-accent">SUNNY.WANG</span>
+  </div>
+</footer>
+
+<script>
+// 核心記憶體資料
+let leaves = [];
+let routes = [];
+
+try {
+  leaves = JSON.parse(localStorage.getItem('calLeaves') || '[]');
+} catch (e) {
+  leaves = [];
+}
+
+try {
+  routes = JSON.parse(localStorage.getItem('simpleRoutes3') || '[]');
+} catch (e) {
+  routes = [];
+}
+
+// 內建 Toast 提示
+function showToast(message, type = 'success') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = 'flex items-center gap-2.5 px-4 py-3 rounded-lg border text-xs shadow-lg animate-fade-in pointer-events-auto transition-all duration-300 transform translate-y-0 opacity-100 min-w-[200px] max-w-sm';
+  
+  if (type === 'success') {
+    toast.className += ' bg-emerald-950/90 border-emerald-800 text-emerald-400';
+    toast.innerHTML = `<i class="fa-solid fa-circle-check text-sm text-emerald-400"></i> <div class="font-medium">${message}</div>`;
+  } else if (type === 'error') {
+    toast.className += ' bg-rose-950/90 border-rose-800 text-rose-400';
+    toast.innerHTML = `<i class="fa-solid fa-circle-exclamation text-sm text-rose-400"></i> <div class="font-medium">${message}</div>`;
+  } else {
+    toast.className += ' bg-slate-900/90 border-border text-gray-200';
+    toast.innerHTML = `<i class="fa-solid fa-circle-info text-sm text-accent"></i> <div class="font-medium">${message}</div>`;
+  }
+  
+  container.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.className += ' translate-y-2 opacity-0 pointer-events-none';
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+// 彈出確認視窗
+let alertConfirmCallback = null;
+
+function customConfirm(title, message, callback) {
+  document.getElementById('alertModalTitle').textContent = title;
+  document.getElementById('alertModalMsg').textContent = message;
+  alertConfirmCallback = callback;
+  document.getElementById('alertModal').classList.remove('hidden');
+}
+
+function closeAlertModal() {
+  document.getElementById('alertModal').classList.add('hidden');
+  alertConfirmCallback = null;
+}
+
+document.getElementById('alertModalConfirmBtn').addEventListener('click', () => {
+  if (alertConfirmCallback) alertConfirmCallback();
+  closeAlertModal();
+});
+
+// 即時時間
+function updateClock() {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const dows = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+  
+  const dateEl = document.getElementById('liveDate');
+  const timeEl = document.getElementById('liveTime');
+  if (dateEl) dateEl.textContent = `${yyyy}/${mm}/${dd} ${dows[now.getDay()]}`;
+  if (timeEl) timeEl.textContent = now.toLocaleTimeString('zh-TW', { hour12: false });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// 面板切換
+function switchMainPage(page) {
+  document.querySelectorAll('.main-panel').forEach(p => p.classList.add('hidden'));
+  document.getElementById('navRecord').className = 'flex items-center gap-2 px-3 py-1.5 rounded-md text-xs md:text-sm font-medium transition text-textMuted hover:text-gray-200';
+  document.getElementById('navStats').className = 'flex items-center gap-2 px-3 py-1.5 rounded-md text-xs md:text-sm font-medium transition text-textMuted hover:text-gray-200';
+  document.getElementById('navSettings').className = 'flex items-center gap-2 px-3 py-1.5 rounded-md text-xs md:text-sm font-medium transition text-textMuted hover:text-gray-200';
+
+  if (page === 'record') {
+    document.getElementById('panelRecord').classList.remove('hidden');
+    document.getElementById('navRecord').className = 'flex items-center gap-2 px-3 py-1.5 rounded-md text-xs md:text-sm font-medium transition text-accent bg-accent/10 border border-accent/20';
+    renderCal();
+    renderTabs();
+  } else if (page === 'stats') {
+    document.getElementById('panelStats').classList.remove('hidden');
+    document.getElementById('navStats').className = 'flex items-center gap-2 px-3 py-1.5 rounded-md text-xs md:text-sm font-medium transition text-accent bg-accent/10 border border-accent/20';
+    calculateStats();
+  } else if (page === 'settings') {
+    document.getElementById('panelSettings').classList.remove('hidden');
+    document.getElementById('navSettings').className = 'flex items-center gap-2 px-3 py-1.5 rounded-md text-xs md:text-sm font-medium transition text-accent bg-accent/10 border border-accent/20';
+  }
+}
+
+/* 臺灣重要節日對照表 (含固定節日與 2024~2030 農曆節日) */
+function getTaiwanHoliday(year, month, day) {
+  const mm = String(month).padStart(2, '0');
+  const dd = String(day).padStart(2, '0');
+  const md = mm + dd;
+
+  const fixedHolidays = {
+    '0101': '元旦', '0228': '228紀念', '0404': '兒童節', '0501': '勞動節', '1010': '國慶日', '1225': '聖誕節'
+  };
+  if (fixedHolidays[md]) return fixedHolidays[md];
+
+  if (month === 4) {
+    const qingmingDay = Math.floor(4.81 + 0.2422 * (year - 2000) - Math.floor((year - 2000) / 4));
+    if (day === qingmingDay) return '清明節';
+  }
+
+  const lunarHolidays = {
+    '20240208': '小年夜', '20240209': '除夕', '20240210': '春節', '20240211': '初二', '20240212': '初三', '20240213': '初四', '20240214': '初五', '20240610': '端午節', '20240917': '中秋節',
+    '20250127': '小年夜', '20250128': '除夕', '20250129': '春節', '20250130': '初二', '20250131': '初三', '20250201': '初四', '20250202': '初五', '20250531': '端午節', '20251006': '中秋節',
+    '20260215': '小年夜', '20260216': '除夕', '20260217': '春節', '20260218': '初二', '20260219': '初三', '20260220': '初四', '20260221': '初五', '20260619': '端午節', '20260925': '中秋節',
+    '20270205': '小年夜', '20270206': '除夕', '20270207': '春節', '20270208': '初二', '20270209': '初三', '20270210': '初四', '20270211': '初五', '20270609': '端午節', '20270915': '中秋節',
+    '20280125': '小年夜', '20280126': '除夕', '20280127': '春節', '20280128': '初二', '20280129': '初三', '20280130': '初四', '20280131': '初五', '20280528': '端午節', '20280903': '中秋節',
+    '20290211': '小年夜', '20290212': '除夕', '20290213': '春節', '20290214': '初二', '20290215': '初三', '20290216': '初四', '20290217': '初五', '20290616': '端午節', '20290922': '中秋節',
+    '20300201': '小年夜', '20300202': '除夕', '20300203': '春節', '20300204': '初二', '20300205': '初三', '20300206': '初四', '20300207': '初五', '20300605': '端午節', '20300912': '中秋節'
+  };
+
+  const fullKey = `${year}${md}`;
+  if (lunarHolidays[fullKey]) return lunarHolidays[fullKey];
+  return null;
+}
+
+// 行事曆變數
+let calYear, calMonth0;
+const todayObj = new Date();
+calYear = todayObj.getFullYear();
+calMonth0 = todayObj.getMonth();
+
+// 預設日期輸入欄位為今日
+const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, '0')}-${String(todayObj.getDate()).padStart(2, '0')}`;
+document.getElementById('fDate').value = todayStr;
+document.getElementById('monthSelect').value = todayStr.slice(0, 7);
+document.getElementById('exportMonthSelect').value = todayStr.slice(0, 7);
+document.getElementById('listMonthSelect').value = todayStr.slice(0, 7);
+document.getElementById('chartMonthSelect').value = todayStr.slice(0, 7);
+
+function changeMonth(direction) {
+  calMonth0 += direction;
+  if (calMonth0 > 11) {
+    calMonth0 = 0;
+    calYear++;
+  } else if (calMonth0 < 0) {
+    calMonth0 = 11;
+    calYear--;
+  }
+  renderCal();
+}
+
+function renderCal() {
+  const months = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+  document.getElementById('calMonth').textContent = `${calYear} 年 ${months[calMonth0]}`;
+  
+  const lastDay = new Date(calYear, calMonth0 + 1, 0).getDate();
+  const startDow = new Date(calYear, calMonth0, 1).getDay();
+  const prevLast = new Date(calYear, calMonth0, 0).getDate();
+  const today = new Date();
+  
+  const dows = ['日', '一', '二', '三', '四', '五', '六'];
+  document.getElementById('calGridHeader').innerHTML = dows.map((d, idx) => {
+    let colorClass = 'text-textMuted';
+    if (idx === 0) colorClass = 'text-rose-500';
+    if (idx === 6) colorClass = 'text-blue-400';
+    return `<div class="text-center py-2 text-xs font-bold tracking-wider uppercase ${colorClass}">${d}</div>`;
+  }).join('');
+  
+  let html = '';
+  
+  // 上個月尾端
+  for (let i = 0; i < startDow; i++) {
+    const dNum = prevLast - startDow + 1 + i;
+    html += `
+      <div class="cal-cell-height p-1 border-t border-r border-border/40 bg-surface/20 text-gray-700 select-none cursor-not-allowed">
+        <span class="text-xs font-rajdhani opacity-30">${dNum}</span>
+      </div>`;
+  }
+  
+  // 當月天數
+  for (let d = 1; d <= lastDay; d++) {
+    const ds = `${calYear}-${String(calMonth0 + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const isToday = today.getFullYear() === calYear && today.getMonth() === calMonth0 && today.getDate() === d;
+    
+    // 檢查請假輪休
+    const dl = leaves.filter(l => l.date === ds);
+    
+    // 檢查台灣節慶
+    const holidayName = getTaiwanHoliday(calYear, calMonth0 + 1, d);
+    const holidayClass = holidayName ? 'text-holiday font-bold' : '';
+    const isHolidayBg = holidayName ? 'bg-rose-950/10' : '';
+    
+    // 任務指示點
+    const hasTasks = routes.some(r => r.date === ds);
+    const taskDot = hasTasks ? `<span class="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span>` : '';
+    
+    let cellClasses = 'hover:bg-surface2/60 transition duration-150 cursor-pointer';
+    if (isToday) cellClasses += ' bg-accent/10 border-accent/40 shadow-inner';
+    
+    html += `
+      <div class="cal-cell-height p-1.5 sm:p-2 border-t border-r border-border flex flex-col justify-between relative ${cellClasses} ${isHolidayBg}" onclick="openModal('${ds}')">
+        <div class="flex items-start justify-between">
+          <span class="text-xs font-rajdhani font-bold ${isToday ? 'text-accent' : holidayName ? 'text-holiday' : 'text-gray-300'}">${d}</span>
+          <div class="flex items-center gap-1">
+            ${taskDot}
+            ${holidayName ? `
+              <span class="text-[8px] sm:text-[9px] bg-holiday/15 text-holiday px-1 py-0.5 rounded truncate max-w-[32px] sm:max-w-[45px]" title="${holidayName}">
+                <span class="sm:inline hidden">${holidayName}</span>
+                <span class="inline sm:hidden">${holidayName.slice(0, 2)}</span>
+              </span>` : ''}
+          </div>
+        </div>
+        <div class="flex flex-col gap-1 mt-1 overflow-hidden">
+          ${dl.map(l => {
+            let badgeStyle = 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+            let emojiIcon = '📌';
+            if (l.type === '請假') {
+              badgeStyle = 'bg-rose-500/15 text-rose-400 border-rose-500/20';
+              emojiIcon = '🚨';
+            }
+            if (l.type === '輪休') {
+              badgeStyle = 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20';
+              emojiIcon = '💤';
+            }
+            return `
+              <!-- 電腦版完整文字標籤 -->
+              <span class="text-[9px] truncate px-1 py-0.5 rounded border ${badgeStyle} hidden sm:block">${l.type}</span>
+              <!-- 手機端超微勳章 (Emoji圓點) -->
+              <span class="text-[10px] text-center w-5 h-5 rounded-full border flex items-center justify-center ${badgeStyle} sm:hidden mx-auto" title="${l.type}">
+                ${emojiIcon}
+              </span>
+            `;
+          }).join('')}
+        </div>
+      </div>`;
+  }
+  
+  // 下個月開頭
+  const rem = (7 - (startDow + lastDay) % 7) % 7;
+  for (let i = 1; i <= rem; i++) {
+    html += `
+      <div class="cal-cell-height p-1 border-t border-border/40 bg-surface/20 text-gray-700 select-none cursor-not-allowed">
+        <span class="text-xs font-rajdhani opacity-30">${i}</span>
+      </div>`;
+  }
+  
+  document.getElementById('calGrid').innerHTML = html;
+  renderLeaveList();
+}
+
+function renderLeaveList() {
+  const ms = `${calYear}-${String(calMonth0 + 1).padStart(2, '0')}`;
+  const ml = leaves.filter(l => l.date.startsWith(ms)).sort((a, b) => a.date.localeCompare(b.date));
+  const box = document.getElementById('leaveList');
+  if (!ml.length) {
+    box.classList.add('hidden');
+    return;
+  }
+  box.classList.remove('hidden');
+  
+  let html = `
+    <div class="text-xs font-bold text-textMuted tracking-wider uppercase mb-3 flex items-center justify-between">
+      <span>🗓️ 本月排程與個人行程規劃（${ml.length} 天）</span>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+  `;
+  
+  ml.forEach(l => {
+    let typeBadge = 'bg-blue-500/10 text-blue-400 border-blue-500/30';
+    if (l.type === '請假') typeBadge = 'bg-rose-500/15 text-rose-400 border-rose-500/30';
+    if (l.type === '輪休') typeBadge = 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
+    
+    html += `
+      <div class="flex items-center justify-between p-2.5 rounded-lg border border-border bg-bg/50">
+        <div class="flex items-center gap-3">
+          <span class="font-rajdhani text-sm font-semibold text-white">${l.date}</span>
+          <span class="text-[10px] px-2 py-0.5 rounded-full border ${typeBadge}">${l.type}</span>
+        </div>
+        <button class="w-8 h-8 rounded flex items-center justify-center border border-transparent hover:border-rose-900 hover:bg-rose-950/20 text-textMuted hover:text-rose-400 transition active:scale-95" onclick="deleteLeave(${l.id})">
+          <i class="fa-regular fa-trash-can text-xs"></i>
+        </button>
+      </div>`;
+  });
+  
+  html += '</div>';
+  box.innerHTML = html;
+}
+
+// 彈出視窗操作
+let modalTargetDate = '';
+function openModal(dateStr) {
+  modalTargetDate = dateStr;
+  document.getElementById('modalDateTitle').innerHTML = `<i class="fa-regular fa-calendar-plus text-accent"></i> 安排個人行程 — ${dateStr}`;
+  document.getElementById('mType').value = '輪休';
+  document.getElementById('modalOverlay').classList.remove('hidden');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.add('hidden');
+}
+
+function saveLeave() {
+  const type = document.getElementById('mType').value;
+  
+  // 檢查是否已重複登記
+  const isExist = leaves.some(l => l.date === modalTargetDate && l.type === type);
+  if (isExist) {
+    showToast('該日期已登記過相同行程囉！', 'error');
+    return;
+  }
+
+  leaves.push({
+    id: Date.now(),
+    date: modalTargetDate,
+    type: type
+  });
+  
+  localStorage.setItem('calLeaves', JSON.stringify(leaves));
+  showToast(`已成功排程 ${modalTargetDate} ${type}！`);
+  closeModal();
+  renderCal();
+  calculateStats();
+}
+
+function deleteLeave(id) {
+  customConfirm('刪除確認', '確定要刪除這筆排程行程嗎？', () => {
+    leaves = leaves.filter(l => l.id !== id);
+    localStorage.setItem('calLeaves', JSON.stringify(leaves));
+    showToast('已移除該行程！');
+    renderCal();
+    calculateStats();
+  });
+}
+
+// 起終點對調
+function swapOriginDest() {
+  const o = document.getElementById('fOrigin');
+  const d = document.getElementById('fDest');
+  const temp = o.value.trim();
+  o.value = d.value.trim();
+  d.value = temp;
+  showToast('起終點快速對調！');
+}
+
+// 新增運輸任務
+function addRoute() {
+  const dateVal = document.getElementById('fDate').value;
+  const origin = document.getElementById('fOrigin').value.trim();
+  const dest = document.getElementById('fDest').value.trim();
+  const owner = document.getElementById('fOwner').value.trim();
+  const type = document.querySelector('input[name="jobType"]:checked').value;
+
+  if (!dateVal) {
+    showToast('請選擇任務日期！', 'error');
+    return;
+  }
+  if (!origin) {
+    showToast('請填寫出發起點！', 'error');
+    return;
+  }
+  if (!dest) {
+    showToast('請填寫目的地！', 'error');
+    return;
+  }
+
+  const newJob = {
+    id: Date.now(),
+    date: dateVal,
+    origin: origin,
+    dest: dest,
+    owner: owner,
+    type: type
+  };
+
+  routes.unshift(newJob);
+  localStorage.setItem('simpleRoutes3', JSON.stringify(routes));
+  
+  showToast('運輸任務新增成功！');
+  
+  // 重設表單與核心元件
+  document.getElementById('fOrigin').value = '';
+  document.getElementById('fDest').value = '';
+  document.getElementById('fOwner').value = '';
+  document.getElementById('fOrigin').focus();
+
+  // 自動導航至新增任務之月份
+  const targetMonth = dateVal.slice(0, 7);
+  document.getElementById('listMonthSelect').value = targetMonth;
+
+  renderCal();
+  onListMonthChange(dateVal); // 將新增日期設為啟動 tab
+  calculateStats();
+}
+
+function deleteRoute(id) {
+  customConfirm('刪除任務', '您確定要刪除這筆運輸任務嗎？此動作將無法復原。', () => {
+    routes = routes.filter(r => r.id !== id);
+    localStorage.setItem('simpleRoutes3', JSON.stringify(routes));
+    showToast('任務已成功刪除');
+    renderCal();
+    onListMonthChange();
+    calculateStats();
+  });
+}
+
+/* 日程任務分頁籤與清單 */
+let activeTab = todayStr;
+
+function onListMonthChange(preferActiveDate = null) {
+  const selectedMonth = document.getElementById('listMonthSelect').value;
+  if (!selectedMonth) return;
+
+  // 篩選該月份所有有任務的日期，以及今天（如果今天屬於該月份）
+  const monthlyRoutes = routes.filter(r => r.date && r.date.startsWith(selectedMonth));
+  const dates = [...new Set(monthlyRoutes.map(r => r.date))];
+  
+  const todayInThisMonth = todayStr.startsWith(selectedMonth);
+  if (todayInThisMonth && !dates.includes(todayStr)) {
+    dates.unshift(todayStr);
+  }
+
+  // 排序：新日期在前
+  dates.sort((a, b) => b.localeCompare(a));
+
+  // 決定預設啟用哪一天
+  if (preferActiveDate && dates.includes(preferActiveDate)) {
+    activeTab = preferActiveDate;
+  } else if (dates.length > 0) {
+    // 若今天有在清單內，預設為今天，否則為最新有任務的那一天
+    if (dates.includes(todayStr)) {
+      activeTab = todayStr;
+    } else {
+      activeTab = dates[0];
+    }
+  } else {
+    activeTab = todayStr;
+  }
+
+  renderTabs(dates);
+}
+
+const DOW_SHORT = ['日', '一', '二', '三', '四', '五', '六'];
+
+// 日程清單 tabs
+function renderTabs(datesList) {
+  const tabsBar = document.getElementById('tabsBar');
+  if (!datesList || datesList.length === 0) {
+    tabsBar.innerHTML = `<div class="text-xs text-textMuted px-4 py-2">本月尚無出車任務</div>`;
+    renderPanel();
+    return;
+  }
+
+  tabsBar.innerHTML = datesList.map(ds => {
+    const d = new Date(ds + 'T00:00:00');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const dow = DOW_SHORT[d.getDay()];
+    const isToday = ds === todayStr;
+    const count = routes.filter(r => r.date === ds).length;
+
+    const activeClass = ds === activeTab 
+      ? 'border-accent text-accent bg-accent/5' 
+      : 'border-transparent text-textMuted hover:text-white hover:bg-surface2/40';
+
+    return `
+      <button class="flex-shrink-0 flex flex-col items-center gap-1 px-4 py-2.5 border-b-2 font-medium text-xs transition relative min-w-[70px] active:scale-95 ${activeClass}" onclick="setTab('${ds}')">
+        ${count ? `<span class="absolute -top-1 -right-1 bg-accent text-black font-rajdhani font-bold text-[9px] w-4.5 h-4.5 rounded-full flex items-center justify-center border-2 border-surface">${count}</span>` : ''}
+        <span class="font-rajdhani text-sm font-bold tracking-wide">${mm}/${dd}</span>
+        <span class="text-[9px] scale-90">${dow}${isToday ? ' (今)' : ''}</span>
+      </button>
+    `;
+  }).join('');
+
+  // 滾動至選定 tab
+  setTimeout(() => {
+    const activeBtn = tabsBar.querySelector('.border-accent');
+    if (activeBtn) activeBtn.scrollIntoView({ inline: 'nearest', behavior: 'smooth' });
+  }, 100);
+
+  renderPanel();
+}
+
+function setTab(dateStr) {
+  activeTab = dateStr;
+  onListMonthChange(dateStr);
+}
+
+function renderPanel() {
+  const panel = document.getElementById('tabPanel');
+  const dayRoutes = routes.filter(r => r.date === activeTab);
+
+  if (!dayRoutes.length) {
+    panel.innerHTML = `
+      <div class="text-center py-10 text-textMuted text-xs flex flex-col items-center justify-center gap-2">
+        <i class="fa-solid fa-truck-moving text-2xl text-border"></i>
+        <span>🚚 ${activeTab} 當日尚無登記任何運輸任務</span>
+      </div>`;
+    return;
+  }
+
+  panel.innerHTML = dayRoutes.map((r, i) => {
+    let typeColor = 'text-blue-400 bg-blue-500/10 border-blue-500/30';
+    let typeIcon = '<i class="fa-solid fa-box text-blue-400"></i>';
+    if (r.type === '卸斗') {
+      typeColor = 'text-green-400 bg-green-500/10 border-green-500/30';
+      typeIcon = '<i class="fa-solid fa-dumpster text-green-400"></i>';
+    } else if (r.type === '特殊') {
+      typeColor = 'text-purple-400 bg-purple-500/10 border-purple-500/30';
+      typeIcon = '<i class="fa-solid fa-truck-ramp-box text-purple-400"></i>';
+    } else if (r.type === '危物') {
+      typeColor = 'text-red-400 bg-red-500/10 border-red-500/30';
+      typeIcon = '<i class="fa-solid fa-triangle-exclamation text-red-400"></i>';
+    }
+
+    return `
+      <div class="flex items-center justify-between p-3.5 mb-2 rounded-xl border border-border bg-bg hover:border-surface2 transition duration-150">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-8 h-8 rounded-lg bg-surface2 border border-border flex items-center justify-center text-xs text-textMuted font-rajdhani font-bold flex-shrink-0">
+            #${dayRoutes.length - i}
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="font-bold text-sm text-white">${r.origin}</span>
+              <span class="text-accent text-xs"><i class="fa-solid fa-arrow-right-long"></i></span>
+              <span class="font-bold text-sm text-white">${r.dest}</span>
+            </div>
+            <div class="flex items-center gap-2 mt-1 text-xs text-textMuted">
+              ${r.owner ? `<span class="flex items-center gap-1"><i class="fa-solid fa-building text-cyanCustom text-[10px]"></i> ${r.owner}</span>` : ''}
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 flex-shrink-0">
+          <span class="text-[10px] px-2 py-0.5 rounded border flex items-center gap-1.5 font-medium ${typeColor}">
+            ${typeIcon} ${r.type}
+          </span>
+          <button class="w-8 h-8 rounded-lg border border-border hover:border-rose-950 hover:bg-rose-950/20 text-textMuted hover:text-rose-400 transition flex items-center justify-center active:scale-95" onclick="deleteRoute(${r.id})">
+            <i class="fa-regular fa-trash-can text-xs"></i>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+/* ==================== 統計分析邏輯與摺疊明細 ==================== */
+function toggleAccordion(id) {
+  const item = document.getElementById(id);
+  if (!item) return;
+  const content = item.querySelector('.stat-panel-content');
+  const isOpen = item.classList.contains('open');
+  
+  document.querySelectorAll('.stat-accordion-item').forEach(el => {
+    if (el !== item) {
+      el.classList.remove('open');
+      const c = el.querySelector('.stat-panel-content');
+      if (c) c.style.maxHeight = '0px';
+    }
+  });
+  
+  if (!isOpen) {
+    item.classList.add('open');
+    content.style.maxHeight = content.scrollHeight + "px";
+  } else {
+    item.classList.remove('open');
+    content.style.maxHeight = '0px';
+  }
+}
+
+function calculateStats() {
+  const selectedMonth = document.getElementById('monthSelect').value;
+  if (!selectedMonth) return;
+
+  const monthlyRoutes = routes.filter(r => r.date && r.date.startsWith(selectedMonth));
+  const monthlyLeaves = leaves.filter(l => l.date && l.date.startsWith(selectedMonth));
+
+  const taskCount = monthlyRoutes.length;
+  const leaveCount = monthlyLeaves.filter(l => l.type === '請假').length;
+  const offCount = monthlyLeaves.filter(l => l.type === '輪休').length;
+
+  document.getElementById('totalTasks').innerHTML = `${taskCount} <span class="text-xs font-sans text-textMuted font-normal">趟次</span>`;
+  document.getElementById('totalLeaves').innerHTML = `${leaveCount} <span class="text-xs font-sans text-textMuted font-normal">天次</span>`;
+  document.getElementById('totalOffs').innerHTML = `${offCount} <span class="text-xs font-sans text-textMuted font-normal">天次</span>`;
+
+  // 各車種統計與視覺化進度條
+  const cyCount = monthlyRoutes.filter(r => r.type === 'CY').length;
+  const dumpCount = monthlyRoutes.filter(r => r.type === '卸斗').length;
+  const specCount = monthlyRoutes.filter(r => r.type === '特殊').length;
+  const hazCount = monthlyRoutes.filter(r => r.type === '危物').length;
+
+  const typesDistribution = [
+    { label: 'CY 貨櫃任務', count: cyCount, color: 'bg-blue-500' },
+    { label: '卸斗車任務', count: dumpCount, color: 'bg-green-500' },
+    { label: '特殊類任務', count: specCount, color: 'bg-purple-500' },
+    { label: '危物類任務', count: hazCount, color: 'bg-red-500' }
+  ];
+
+  document.getElementById('jobTypeVisualBars').innerHTML = typesDistribution.map(t => {
+    const pct = taskCount > 0 ? (t.count / taskCount) * 100 : 0;
+    return `
+      <div class="space-y-1.5">
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-gray-300 font-medium">${t.label}</span>
+          <span class="font-rajdhani font-bold text-white">${t.count} 趟 (${Math.round(pct)}%)</span>
+        </div>
+        <div class="w-full bg-bg/60 h-2 rounded-full overflow-hidden border border-border/30">
+          <div class="h-full rounded-full ${t.color}" style="width: ${pct}%"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const detailBox = document.getElementById('detailBox');
+  if (taskCount === 0 && monthlyLeaves.length === 0) {
+    detailBox.innerHTML = `
+      <div class="text-center py-12 text-textMuted text-xs flex flex-col items-center justify-center gap-2">
+        <i class="fa-solid fa-folder-open text-2xl text-border"></i>
+        <span>📊 本月尚無任何出車任務或排程行程紀錄</span>
+      </div>`;
+    return;
+  }
+
+  const sortedRoutes = [...monthlyRoutes].sort((a, b) => b.date.localeCompare(a.date));
+  const accordionCategories = [
+    { key: 'CY', label: '🔷 CY 貨櫃任務明細', badgeStyle: 'bg-blue-500/15 text-blue-400 border-blue-500/30', data: sortedRoutes.filter(r => r.type === 'CY') },
+    { key: '卸斗', label: '🟩 卸斗車任務明細', badgeStyle: 'bg-green-500/15 text-green-400 border-green-500/30', data: sortedRoutes.filter(r => r.type === '卸斗') },
+    { key: '特殊', label: '🟪 特殊類任務明細', badgeStyle: 'bg-purple-500/15 text-purple-400 border-purple-500/30', data: sortedRoutes.filter(r => r.type === '特殊') },
+    { key: '危物', label: '🟥 危物類任務明細', badgeStyle: 'bg-red-500/15 text-red-400 border-red-500/30', data: sortedRoutes.filter(r => r.type === '危物') }
+  ];
+
+  let html = '';
+
+  accordionCategories.forEach(cat => {
+    let innerList = '';
+    if (cat.data.length === 0) {
+      innerList = `<div class="text-xs text-textMuted py-3 text-center">本月此類別尚無出車任務</div>`;
+    } else {
+      innerList = cat.data.map(r => `
+        <div class="flex items-center justify-between py-2 border-b border-border/30 last:border-b-0 text-xs">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="font-rajdhani text-[10px] text-textMuted min-w-[35px]">${r.date.slice(5)}</span>
+            <span class="font-bold text-white truncate">${r.origin} → ${r.dest}</span>
+          </div>
+          ${r.owner ? `<span class="text-[11px] text-cyanCustom ml-2 truncate max-w-[120px]">[${r.owner}]</span>` : ''}
+        </div>
+      `).join('');
+    }
+
+    html += `
+      <div class="stat-accordion-item py-1" id="acc-${cat.key}">
+        <button class="stat-row-trigger flex items-center justify-between w-full text-left font-semibold text-xs py-3" onclick="toggleAccordion('acc-${cat.key}')">
+          <span class="text-gray-300">${cat.label}</span>
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] font-rajdhani px-2 py-0.5 rounded border font-bold ${cat.badgeStyle}">${cat.data.length} 趟</span>
+            <i class="fa-solid fa-chevron-down text-[10px] text-textMuted accordion-arrow transition-transform duration-200"></i>
+          </div>
+        </button>
+        <div class="stat-panel-content max-h-0 overflow-hidden transition-all duration-300 ease-in-out bg-bg/40 rounded-lg">
+          <div class="p-3 border border-border/30 rounded-lg space-y-1">
+            ${innerList}
+          </div>
+        </div>
+      </div>
+    `;
+  });
+
+  // 假別項目手風琴
+  const leaveCategories = [
+    { key: '請假', label: '🚨 請假日期細項', badgeStyle: 'bg-rose-500/15 text-rose-400 border-rose-500/30', data: monthlyLeaves.filter(l => l.type === '請假') },
+    { key: '輪休', label: '💤 輪休日期細項', badgeStyle: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', data: monthlyLeaves.filter(l => l.type === '輪休') }
+  ];
+
+  leaveCategories.forEach(lt => {
+    if (lt.data.length > 0) {
+      const innerList = lt.data.map(l => `
+        <div class="flex items-center justify-between py-2 border-b border-border/30 last:border-b-0 text-xs">
+          <span class="font-rajdhani text-[11px] text-textMuted">${l.date}</span>
+          <span class="text-textMuted text-[11px]">已登記 ${lt.key}</span>
+        </div>
+      `).join('');
+
+      html += `
+        <div class="stat-accordion-item py-1" id="acc-leave-${lt.key}">
+          <button class="stat-row-trigger flex items-center justify-between w-full text-left font-semibold text-xs py-3" onclick="toggleAccordion('acc-leave-${lt.key}')">
+            <span class="text-gray-300">${lt.label}</span>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] font-rajdhani px-2 py-0.5 rounded border font-bold ${lt.badgeStyle}">${lt.data.length} 天</span>
+              <i class="fa-solid fa-chevron-down text-[10px] text-textMuted accordion-arrow transition-transform duration-200"></i>
+            </div>
+          </button>
+          <div class="stat-panel-content max-h-0 overflow-hidden transition-all duration-300 ease-in-out bg-bg/40 rounded-lg">
+            <div class="p-3 border border-border/30 rounded-lg space-y-1">
+              ${innerList}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+  });
+
+  detailBox.innerHTML = html;
+}
+
+/* ==================== 畫布本地統計分析圖生成 ==================== */
+function drawRoundRectPath(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+}
+
+let currentGeneratedMonth = '';
+
+function generateLocalReportImage() {
+  const selectedMonth = document.getElementById('chartMonthSelect').value || todayStr.slice(0, 7);
+  currentGeneratedMonth = selectedMonth;
+  
+  const monthlyRoutes = routes.filter(r => r.date && r.date.startsWith(selectedMonth));
+  const monthlyLeaves = leaves.filter(l => l.date && l.date.startsWith(selectedMonth));
+
+  const taskCount = monthlyRoutes.length;
+  const leaveCount = monthlyLeaves.filter(l => l.type === '請假').length;
+  const offCount = monthlyLeaves.filter(l => l.type === '輪休').length;
+
+  const cyCount = monthlyRoutes.filter(r => r.type === 'CY').length;
+  const dumpCount = monthlyRoutes.filter(r => r.type === '卸斗').length;
+  const specCount = monthlyRoutes.filter(r => r.type === '特殊').length;
+  const hazCount = monthlyRoutes.filter(r => r.type === '危物').length;
+
+  // 創建 Canvas 畫布 (寬1000px, 高750px)
+  const canvas = document.createElement('canvas');
+  canvas.width = 1000;
+  canvas.height = 750;
+  const ctx = canvas.getContext('2d');
+
+  // 1. 背景漸層設定
+  const bgGrad = ctx.createLinearGradient(0, 0, 1000, 750);
+  bgGrad.addColorStop(0, '#0d1117'); 
+  bgGrad.addColorStop(1, '#070a0f');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, 1000, 750);
+
+  // 繪製背景裝飾性科技網格
+  ctx.strokeStyle = 'rgba(48, 54, 61, 0.2)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < canvas.width; i += 50) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
+  }
+  for (let j = 0; j < canvas.height; j += 50) {
+    ctx.beginPath(); ctx.moveTo(0, j); ctx.lineTo(canvas.width, j); ctx.stroke();
+  }
+
+  // 頂部科技亮橙裝飾條
+  const accentGrad = ctx.createLinearGradient(0, 0, 1000, 0);
+  accentGrad.addColorStop(0, '#f0a500');
+  accentGrad.addColorStop(1, '#e05c1a');
+  ctx.fillStyle = accentGrad;
+  ctx.fillRect(0, 0, 1000, 6);
+
+  // 2. 標頭設定
+  // 六角形 Logo 繪製
+  ctx.shadowBlur = 15;
+  ctx.shadowColor = 'rgba(240, 165, 0, 0.35)';
+  const hexGrad = ctx.createLinearGradient(50, 40, 100, 90);
+  hexGrad.addColorStop(0, '#f0a500');
+  hexGrad.addColorStop(1, '#e05c1a');
+  ctx.fillStyle = hexGrad;
+  
+  ctx.beginPath();
+  const centerX = 75, centerY = 65, size = 26;
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI / 3) * i;
+    const x = centerX + size * Math.cos(angle);
+    const y = centerY + size * Math.sin(angle);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Logo 內縮字母 "TJ"
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 20px "Rajdhani", Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('TJ', centerX, centerY + 1);
+
+  // 標題與說明文字 - 引入系統標準字型相容體，防止行動端字型載入異常
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 30px "Rajdhani", "Noto Sans TC", "Microsoft JhengHei", sans-serif';
+  ctx.fillText('TruckingJob', 120, 58);
+
+  ctx.fillStyle = '#8b949e';
+  ctx.font = '500 13px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
+  ctx.fillText('個人運輸工作管理系統 • 月度統計簡報', 120, 83);
+
+  // 右側月份顯示框
+  const monthStr = selectedMonth.replace('-', ' 年 ') + ' 月';
+  ctx.strokeStyle = '#f0a500';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(740, 40, 210, 45);
+  ctx.fillStyle = 'rgba(240, 165, 0, 0.05)';
+  ctx.fillRect(740, 40, 210, 45);
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#f0a500';
+  ctx.font = 'bold 15px "Rajdhani", "Noto Sans TC", "Microsoft JhengHei", sans-serif';
+  ctx.fillText(monthStr + ' 數據彙整', 845, 68);
+
+  // 3. 三大指標數據卡 (KPI Cards)
+  const cardWidth = 280;
+  const cardHeight = 110;
+  const startY = 130;
+  const gap = 35;
+  const startX = 50;
+
+  const cardData = [
+    { label: '運輸任務總數', val: taskCount, unit: '趟次', color: '#f0a500' },
+    { label: '個人請假總數', val: leaveCount, unit: '天次', color: '#f85149' },
+    { label: '個人輪休總數', val: offCount, unit: '天次', color: '#3fb950' }
+  ];
+
+  cardData.forEach((card, idx) => {
+    const x = startX + idx * (cardWidth + gap);
+    
+    // 卡片背景底色
+    ctx.fillStyle = '#161b22';
+    ctx.strokeStyle = '#30363d';
+    ctx.lineWidth = 1;
+    drawRoundRectPath(ctx, x, startY, cardWidth, cardHeight, 10);
+    ctx.fill();
+    ctx.stroke();
+
+    // 左側跳色標記條
+    ctx.fillStyle = card.color;
+    drawRoundRectPath(ctx, x, startY, 6, cardHeight, 10);
+    ctx.fill();
+    ctx.fillRect(x + 3, startY, 3, cardHeight);
+
+    // 項目標籤
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '500 13px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
+    ctx.fillText(card.label, x + 24, startY + 32);
+
+    // 指標數值
+    ctx.fillStyle = card.color;
+    ctx.font = 'bold 40px "Rajdhani", Arial, sans-serif';
+    ctx.fillText(card.val.toString(), x + 24, startY + 80);
+
+    // 指標單位
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '500 13px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
+    const valWidth = ctx.measureText(card.val.toString()).width;
+    ctx.fillText(card.unit, x + 24 + valWidth + 8, startY + 76);
+  });
+
+  // 4. 數據細項分佈 (左側車種類別進度條、右側圓餅比例圖)
+  const contentY = 280;
+  const contentHeight = 390;
+
+  // == 左側：進度條分佈 ==
+  const leftX = 50;
+  const leftWidth = 430;
+  ctx.fillStyle = '#161b22';
+  ctx.strokeStyle = '#30363d';
+  drawRoundRectPath(ctx, leftX, contentY, leftWidth, contentHeight, 12);
+  ctx.fill();
+  ctx.stroke();
+
+  // 左側標題
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 15px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
+  ctx.fillText('📋 各類別運輸任務趟次', leftX + 24, contentY + 36);
+
+  const typesList = [
+    { name: 'CY 貨櫃任務', count: cyCount, color: '#58a6ff' },
+    { name: '卸斗任務', count: dumpCount, color: '#3fb950' },
+    { name: '特殊運輸任務', count: specCount, color: '#bc8cff' },
+    { name: '危物運輸任務', count: hazCount, color: '#f85149' }
+  ];
+
+  const barStartY = contentY + 80;
+  const barGap = 72;
+  const maxBarWidth = 380;
+
+  typesList.forEach((type, idx) => {
+    const y = barStartY + idx * barGap;
+    const pct = taskCount > 0 ? (type.count / taskCount) : 0;
+    const fillWidth = pct * maxBarWidth;
+
+    // 分類名稱
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '500 13px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
+    ctx.fillText(type.name, leftX + 24, y);
+
+    // 右側數據與百分比
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#8b949e';
+    ctx.font = 'bold 13px "Rajdhani", Arial, sans-serif';
+    ctx.fillText(`${type.count} 趟  (${Math.round(pct * 100)}%)`, leftX + leftWidth - 24, y);
+
+    // 槽條軌道
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#0d1117';
+    drawRoundRectPath(ctx, leftX + 24, y + 12, maxBarWidth, 12, 6);
+    ctx.fill();
+
+    // 已填滿進度條
+    if (fillWidth > 0) {
+      ctx.fillStyle = type.color;
+      drawRoundRectPath(ctx, leftX + 24, y + 12, fillWidth, 12, 6);
+      ctx.fill();
+    }
+  });
+
+  // == 右側：圓環圖 (Donut Chart) ==
+  const rightX = 520;
+  const rightWidth = 430;
+  ctx.fillStyle = '#161b22';
+  ctx.strokeStyle = '#30363d';
+  drawRoundRectPath(ctx, rightX, contentY, rightWidth, contentHeight, 12);
+  ctx.fill();
+  ctx.stroke();
+
+  // 右側標題
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 15px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
+  ctx.fillText('📊 任務類型比例分佈', rightX + 24, contentY + 36);
+
+  const donutCenterX = rightX + rightWidth / 2;
+  const donutCenterY = contentY + contentHeight / 2 + 10;
+  const outerRadius = 100;
+  const innerRadius = 65;
+
+  if (taskCount === 0) {
+    // 空圓環
+    ctx.strokeStyle = '#30363d';
+    ctx.lineWidth = 16;
+    ctx.beginPath();
+    ctx.arc(donutCenterX, donutCenterY, 80, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '500 13px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
+    ctx.fillText('本月無運輸資料', donutCenterX, donutCenterY);
+  } else {
+    // 繪製各區段
+    let lastAngle = -Math.PI / 2;
+    typesList.forEach(type => {
+      if (type.count === 0) return;
+      const ratio = type.count / taskCount;
+      const angle = ratio * Math.PI * 2;
+
+      ctx.fillStyle = type.color;
+      ctx.beginPath();
+      ctx.moveTo(donutCenterX, donutCenterY);
+      ctx.arc(donutCenterX, donutCenterY, outerRadius, lastAngle, lastAngle + angle);
+      ctx.lineTo(donutCenterX, donutCenterY);
+      ctx.closePath();
+      ctx.fill();
+
+      lastAngle += angle;
+    });
+
+    // 內縮白色挖空圓
+    ctx.fillStyle = '#161b22';
+    ctx.beginPath();
+    ctx.arc(donutCenterX, donutCenterY, innerRadius, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.fill();
+
+    // 圓環核心總數
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '500 12px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
+    ctx.fillText('月度合計', donutCenterX, donutCenterY - 14);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 24px "Rajdhani", Arial, sans-serif';
+    ctx.fillText(`${taskCount} 趟`, donutCenterX, donutCenterY + 12);
+  }
+
+  // 右下圖例說明
+  const legendX = rightX + 44;
+  const legendY = contentY + contentHeight - 40;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+
+  let curLegX = legendX;
+  typesList.forEach(type => {
+    // 圖例圓點
+    ctx.fillStyle = type.color;
+    ctx.beginPath();
+    ctx.arc(curLegX, legendY, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 圖例字樣
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '500 11px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
+    const cleanLabel = type.name.split(' ')[0];
+    ctx.fillText(cleanLabel, curLegX + 10, legendY);
+
+    curLegX += 88;
+  });
+
+  // 5. 頁尾資訊
+  const footerY = 705;
+  ctx.strokeStyle = '#30363d';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(50, footerY);
+  ctx.lineTo(950, footerY);
+  ctx.stroke();
+
+  ctx.fillStyle = '#8b949e';
+  ctx.font = '500 10px "Rajdhani", Arial, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('TRUCKINGJOB PROFESSIONAL TRANSPORTATION SYSTEM • LOCAL ENCRYPTED DATA', 50, footerY + 22);
+
+  ctx.textAlign = 'right';
+  ctx.font = 'bold 11px "Rajdhani", Arial, sans-serif';
+  ctx.fillText('DESIGNED BY SUNNY.WANG', 950, footerY + 22);
+
+  // 輸出 Base64 並載入至 Modal 中的 img
+  const dataUrl = canvas.toDataURL('image/png');
+  document.getElementById('reportCardImage').src = dataUrl;
+
+  // 更新下載連結
+  const downloadBtn = document.getElementById('downloadReportBtn');
+  downloadBtn.href = dataUrl;
+  downloadBtn.download = `TruckingJob_統計分析圖_${selectedMonth}.png`;
+
+  // 彈出預覽視窗
+  document.getElementById('localReportModal').classList.remove('hidden');
+}
+
+function closeLocalReportModal() {
+  document.getElementById('localReportModal').classList.add('hidden');
+}
+
+// 產生 LINE 格式文字簡報
+function generateLineText(selectedMonth) {
+  const monthlyRoutes = routes.filter(r => r.date && r.date.startsWith(selectedMonth));
+  const monthlyLeaves = leaves.filter(l => l.date && l.date.startsWith(selectedMonth));
+
+  const taskCount = monthlyRoutes.length;
+  const leaveCount = monthlyLeaves.filter(l => l.type === '請假').length;
+  const offCount = monthlyLeaves.filter(l => l.type === '輪休').length;
+
+  const cyCount = monthlyRoutes.filter(r => r.type === 'CY').length;
+  const dumpCount = monthlyRoutes.filter(r => r.type === '卸斗').length;
+  const specCount = monthlyRoutes.filter(r => r.type === '特殊').length;
+  const hazCount = monthlyRoutes.filter(r => r.type === '危物').length;
+
+  return `備忘 🚛 【TruckingJob 月度工作簡報】
+📅 報表月份：${selectedMonth}
+━━━━━━━━━━━━━━━━
+📊 本月任務統計：
+  🔷 CY 貨櫃任務：${cyCount} 趟
+  🟩 卸斗車任務：${dumpCount} 趟
+  🟪 特殊類任務：${specCount} 趟
+  🟥 危物類任務：${hazCount} 趟
+  🏁 本月出車合計：${taskCount} 趟
+
+💤 個人休假排程：
+  🚨 請假：${leaveCount} 天
+  💤 輪休：${offCount} 天
+
+✨ 報告完畢，辛苦了！
+(系統設計：SUNNY.WANG)`;
+}
+
+function copyLineReportText(specifiedMonth) {
+  const selectedMonth = specifiedMonth || document.getElementById('chartMonthSelect').value || todayStr.slice(0, 7);
+  const text = generateLineText(selectedMonth);
+
+  // 複製至剪貼簿 (相容行動瀏覽器與 Webview iframe 機制)
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  try {
+    document.execCommand('copy');
+    showToast(`LINE 簡報 (${selectedMonth}) 已複製至剪貼簿！`);
+  } catch (err) {
+    showToast('複製失敗，請手動複製', 'error');
+  }
+  document.body.removeChild(textarea);
+}
+
+function copyLineReportTextFromModal() {
+  copyLineReportText(currentGeneratedMonth);
+}
+
+// 匯出 CSV 報表 
+function exportToCSV() {
+  const selectedMonth = document.getElementById('exportMonthSelect').value;
+  if (!selectedMonth) {
+    showToast('請選擇要匯出的月份！', 'error');
+    return;
+  }
+  
+  const monthlyRoutes = routes.filter(r => r.date && r.date.startsWith(selectedMonth));
+  if (monthlyRoutes.length === 0) {
+    showToast('該月份尚無任何出車紀錄可供匯出。', 'error');
+    return;
+  }
+
+  // 避免 Excel 亂碼，寫入 UTF-8 BOM
+  let csvContent = "\uFEFF";
+  csvContent += "出車日期,工作類型,出發地(起點),目的地(終點),貨主/公司\r\n";
+
+  // 按日期由舊到新排序匯出
+  const sorted = [...monthlyRoutes].sort((a, b) => a.date.localeCompare(b.date));
+  sorted.forEach(r => {
+    const oName = r.owner ? r.owner.replace(/"/g, '""') : '';
+    csvContent += `${r.date},${r.type},"${r.origin.replace(/"/g, '""')}","${r.dest.replace(/"/g, '""')}","${oName}"\r\n`;
+  });
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", `TruckingJob_運輸報表_${selectedMonth}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  showToast(`已成功匯出 ${selectedMonth} 報表！`);
+}
+
+// 首次加載啟動
+window.onload = function() {
+  renderCal();
+  onListMonthChange();
+  calculateStats();
+};
+</script>
+</body>
+</html>
